@@ -1,0 +1,84 @@
+{
+  "name": "Shipment Price Calculator (State Management)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shipment-update",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        704,
+        208
+      ],
+      "id": "adc0f2da-99b4-4c02-8ce6-6735d4922e1d",
+      "webhookId": "2fb465b7-3818-4c02-b321-884dae16b355"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items[0].json;\nconst data = input.body || input;\nconst shipmentId = data.shipment_id;\n\nif (!shipmentId) {\n    return [{ json: { error: \"shipment_id is required\" } }];\n}\n\nlet staticData;\ntry {\n    // Используем альтернативный доступ к памяти\n    staticData = getWorkflowStaticData('global');\n} catch (e) {\n    staticData = { shipments: {} };\n}\n\nif (!staticData.shipments) staticData.shipments = {};\n\n// Сливаем старое и новое\nconst prevState = staticData.shipments[shipmentId] || {};\nconst updatedState = { ...prevState, ...data };\n\n// Сохраняем (принудительное обновление для Docker)\nstaticData.shipments[shipmentId] = updatedState;\n\n// Логика расчета (ЖЕСТКАЯ ПРОВЕРКА)\nlet price = 1200;\nconst s = updatedState;\n\nif (s.pickup_start_date && s.delivery_start_date && s.delivery_start_time) {\n    const isSameDay = s.pickup_start_date === s.delivery_start_date;\n    const hour = parseInt(s.delivery_start_time.split(':')[0]) || 0;\n\n    // Если доставка на другой день после 13:00\n    if (hour >= 13 && !isSameDay) {\n        price = 2400;\n    }\n}\n\nreturn [{\n    json: {\n        shipment_id: shipmentId,\n        suggested_price: price,\n        current_state: updatedState,\n        persistence_check: !!staticData.shipments[shipmentId].pickup_start_date\n    }\n}];"
+      },
+      "name": "State & Price Calculation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        208
+      ],
+      "id": "633fedf2-6f31-44ed-ab92-f227695267d7"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        208
+      ],
+      "id": "b1adb111-a1cb-4a47-8166-b7241b2ff015"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "State & Price Calculation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State & Price Calculation": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "892122ec-aed3-4700-b061-17bf879a5739",
+  "meta": {
+    "instanceId": "754433cec56a1e8e14d597c2361b58bb83776310729008eeea86ed3e104aed05"
+  },
+  "id": "UspviBEY4aQwVlk6",
+  "tags": []
+}
